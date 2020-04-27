@@ -243,9 +243,9 @@ customPandocCompiler = do
               _ | enableMathml -> MathML
               _ -> MathJax "",
             writerNumberSections = fromMaybe enableNumberSections $ fmap readBoolOption numberSectionsOption,
-            writerTableOfContents = enableTOC,
+            writerTableOfContents = enableToc,
             writerTOCDepth = 3,
-            writerTemplate = if enableTOC then Just tocTemplate else Nothing
+            writerTemplate = if enableToc then Just tocTemplate else Nothing
           }
   pandocCompilerWithTransformM defaultHakyllReaderOptions writerOptions (internalLinkTransform path)
 
