@@ -15,10 +15,12 @@ import Data.List
     isSuffixOf,
   )
 import Data.List.Split (splitOn)
+import qualified Data.Map as M
 import Data.Maybe (fromMaybe, isJust, maybeToList)
 import Data.Monoid (mappend)
 import qualified Data.Set as S
 import qualified Data.Text as T
+import Debug.Trace
 import Hakyll
 import qualified Hakyll.Core.Store as Store
 import System.FilePath.Posix
@@ -293,12 +295,7 @@ fileNameFromStrings list =
       <|> (findAttribute "title" list)
 
 findAttribute :: String -> [(Maybe String, String)] -> Maybe String
-findAttribute a list = fmap snd $ find myFind list
-  where
-    myFind :: (Maybe String, String) -> Bool
-    myFind (x, _) = case x of
-      Just a -> True
-      _ -> False
+findAttribute a list = M.lookup (Just a) $ M.fromList list
 
 -- | Internal link transformation
 internalLinkTransform :: FilePath -> Pandoc -> Compiler Pandoc
