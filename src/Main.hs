@@ -3,10 +3,7 @@
 --------------------------------------------------------------------------------
 
 import Control.Applicative ((<|>))
-import Data.Char (isAlphaNum)
-import Data.Char
-  ( toLower,
-  )
+import Data.Char (isAlphaNum, isSpace, toLower)
 import Data.Functor.Identity (runIdentity)
 import Data.List
   ( find,
@@ -16,7 +13,7 @@ import Data.List
   )
 import Data.List.Split (splitOn)
 import qualified Data.Map as M
-import Data.Maybe (fromMaybe, isJust, maybeToList)
+import Data.Maybe (fromJust, fromMaybe, isJust, maybeToList)
 import Data.Monoid (mappend)
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -24,14 +21,14 @@ import Debug.Trace
 import Hakyll
 import qualified Hakyll.Core.Store as Store
 import System.FilePath.Posix
-  ( (</>),
-    joinPath,
+  ( joinPath,
     normalise,
     splitDirectories,
     splitPath,
     takeBaseName,
     takeDirectory,
     takeFileName,
+    (</>),
   )
 import Text.Pandoc.Definition
 import Text.Pandoc.Options
@@ -46,6 +43,11 @@ config =
       deployCommand = "bash deploy.sh",
       storeDirectory = ".hakyll-cache"
     }
+
+trimString :: String -> String
+trimString = f . f
+  where
+    f = reverse . dropWhile isSpace
 
 main :: IO ()
 main = hakyllWith config $ do
@@ -145,10 +147,10 @@ main = hakyllWith config $ do
 cleanRoute :: Routes
 cleanRoute = customRoute createIndexRoute
   where
-    createIndexRoute ident = cleanFilename $ toFilePath ident
+    createIndexRoute ident = getFileNameFromSlug $ toFilePath ident
 
-cleanFilename :: FilePath -> FilePath
-cleanFilename p
+getFileNameFromSlug :: FilePath -> FilePath
+getFileNameFromSlug p
   | idx `isSuffixOf` p = p
   | otherwise = takeDirectory p </> takeBaseName p </> "index.html"
   where
@@ -173,7 +175,7 @@ cleanIndex url
 --------------------------------------------------------------------------------
 myDefaultContext :: Context String
 myDefaultContext =
-  constField "siteTitle" "contrun's personal wiki"
+  constField "siteTitle" "ecce homo"
     <> defaultContext
 
 postCtx :: Context String
@@ -259,18 +261,16 @@ tocTemplate = case runIdentity $ PT.compileTemplate "" tmpl of
     tmpl =
       "\n<div class=\"toc\"><div class=\"header\">Table of Contents</div>\n$toc$\n</div>\n$body$"
 
-keepAlphaNum :: Char -> Char
-keepAlphaNum x
-  | isAlphaNum x = x
-  | otherwise = ' '
-
-clean :: T.Text -> T.Text
-clean =
-  T.map keepAlphaNum . T.replace "'" "" . T.replace "&" "and"
-
-toSlug :: T.Text -> T.Text
-toSlug =
-  T.intercalate (T.singleton '-') . T.words . T.toLower . clean
+slugify :: String -> String
+slugify =
+  T.unpack . T.intercalate (T.singleton '-') . T.words . T.toLower . clean . T.pack
+  where
+    clean :: T.Text -> T.Text
+    clean = T.map keepAlphaNum . T.replace "'" "" . T.replace "&" "and"
+    keepAlphaNum :: Char -> Char
+    keepAlphaNum x
+      | isAlphaNum x = x
+      | otherwise = ' '
 
 titleRoute :: Metadata -> Routes
 titleRoute =
@@ -278,24 +278,11 @@ titleRoute =
 
 fileNameFromMetadata :: Metadata -> String
 fileNameFromMetadata =
-  toFileName . getTitleFromMeta
+  getFileNameFromSlug . getSlugFromMeta
 
-toFileName :: String -> String
-toFileName = cleanFilename . T.unpack . (`T.append` ".html") . toSlug . T.pack
-
-getTitleFromMeta :: Metadata -> String
-getTitleFromMeta m =
-  fromMaybe "no title" $ lookupString "slug" m <|> lookupString "title" m
-
-fileNameFromStrings :: [(Maybe String, String)] -> String
-fileNameFromStrings list =
-  toFileName
-    $ fromMaybe "no title"
-    $ (findAttribute "slug" list)
-      <|> (findAttribute "title" list)
-
-findAttribute :: String -> [(Maybe String, String)] -> Maybe String
-findAttribute a list = M.lookup (Just a) $ M.fromList list
+getSlugFromMeta :: Metadata -> String
+getSlugFromMeta m =
+  fromJust $ lookupString "slug" m <|> lookupString "title" m
 
 -- | Internal link transformation
 internalLinkTransform :: FilePath -> Pandoc -> Compiler Pandoc
@@ -313,7 +300,8 @@ internalLinkTransform' _ x = return x
 
 getIdentifierURLCompiler :: FilePath -> Identifier -> Compiler (Store.Result String)
 getIdentifierURLCompiler path identifier = unsafeCompiler $ do
-  let newPath = joinPath $ drop 1 $ splitPath $ normalise $ takeDirectory path </> (toFilePath identifier)
+  let p = toFilePath identifier
+      newPath = joinPath $ drop 1 $ splitPath $ normalise $ takeDirectory path </> p
   store <- Store.new False $ storeDirectory config
   Store.get store [newPath]
 
@@ -329,27 +317,30 @@ orgCompiler i = do
   withItemBody (go identifier) i
   where
     go :: Identifier -> String -> Compiler String
-    go identifier s =
-      let filename = fileNameFromStrings $ orgMetadata s
-          result = (metadatasToStr . orgMetadata) s ++ s
+    go identifier body =
+      let dashes = "----------"
+          metadata = getOrgMetadata body
+          slug = fromJust $ M.lookup "slug" metadata
+          filename = getFileNameFromSlug slug
+          metadataLines = map (\x -> intercalate ": " [fst x, snd x]) $ M.toList metadata
+          result = (unlines ([dashes] ++ metadataLines ++ [dashes])) ++ body
        in fmap (\_ -> result) $ setIdentifierURLCompiler identifier $ toUrl filename
 
-orgMetadata :: String -> [(Maybe String, String)]
-orgMetadata = map (format . clean) . getFirstLines . lines
+getOrgMetadata :: String -> M.Map String String
+getOrgMetadata body =
+  let getMap = M.fromList . (map getTuple) . getGoodLines . lines
+      m = getMap body
+      slug = slugify $ fromJust $ M.lookup "slug" m <|> M.lookup "title" m
+   in M.insert "slug" slug m
   where
-    getFirstLines = takeWhile (/= "")
+    getGoodLines = filter (/= "") . takeWhile (\x -> (isPrefixOf "#+" x || x == ""))
     clean :: String -> String
     clean = concat . splitOn "#+"
-    format :: String -> (Maybe String, String)
+    format :: String -> (String, String)
     format s = case splitOn ":" s of
-      [] -> (Nothing, "")
-      x : xs -> (Just (map toLower x), intercalate ":" xs)
-
-metadatasToStr :: [(Maybe String, String)] -> String
-metadatasToStr list =
-  let dashes = "----------"
-      ss = map (\(x, y) -> intercalate ":" $ (maybeToList x) ++ [y]) list
-   in unlines $ ([dashes] ++) $ (++ [dashes]) ss
+      [] -> error ("Invalid metadata for line " ++ s)
+      x : xs -> (map toLower x, trimString $ intercalate ":" xs)
+    getTuple = format . clean
 
 tempRoute :: Routes
 tempRoute = customRoute tempRoute'
