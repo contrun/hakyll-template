@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 --------------------------------------------------------------------------------
@@ -18,8 +19,11 @@ import Data.Monoid (mappend)
 import qualified Data.Set as S
 import qualified Data.Text as T
 import Debug.Trace
+import GHC.Generics
 import Hakyll
 import qualified Hakyll.Core.Store as Store
+import System.Environment.Blank
+import System.Envy
 import System.FilePath.Posix
   ( joinPath,
     normalise,
@@ -30,19 +34,41 @@ import System.FilePath.Posix
     takeFileName,
     (</>),
   )
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Pandoc.Definition
 import Text.Pandoc.Options
 import qualified Text.Pandoc.Templates as PT (Template, compileTemplate)
 import Text.Pandoc.Walk
 
 --------------------------------------------------------------------------------
+
+data HakyllConfig = HakyllConfig
+  { hakyllTitle :: String, -- "HAKYLL_TITLE",
+    hakyllBaseURL :: String, -- "HAKYLL_BASE_URL"
+    hakyllDestinationDirectory :: String, -- "HAKYLL_DESTINATION_DIRECTORY"
+    hakyllProviderDirectory :: String, -- "HAKYLL_PROVIDER_DIRECTORY"
+    hakyllStoreDirectory :: String, -- "HAKYLL_STORE_DIRECTORY"
+    hakyllDeployCommand :: String -- "HAKYLL_DEPLOY_COMMAND"
+  }
+  deriving (Generic, Show)
+
+instance FromEnv HakyllConfig
+
+instance DefConfig HakyllConfig where
+  defConfig = HakyllConfig "site untitled" "" "../public" ".." ".hakyll-cache" "bash deploy.sh"
+
+hakyllConfig :: HakyllConfig
+hakyllConfig = unsafePerformIO $ decodeWithDefaults defConfig
+
 config :: Configuration
 config =
-  defaultConfiguration
-    { destinationDirectory = "public",
-      deployCommand = "bash deploy.sh",
-      storeDirectory = ".hakyll-cache"
-    }
+  trace (show hakyllConfig) $
+    defaultConfiguration
+      { destinationDirectory = hakyllDestinationDirectory hakyllConfig,
+        providerDirectory = hakyllProviderDirectory hakyllConfig,
+        storeDirectory = hakyllStoreDirectory hakyllConfig,
+        deployCommand = hakyllDeployCommand hakyllConfig
+      }
 
 trimString :: String -> String
 trimString = f . f
@@ -140,6 +166,9 @@ main = hakyllWith config $ do
         >>= cleanIndexUrls
   match "templates/*" $ compile templateBodyCompiler
   match ("node_modules/katex/dist/katex.*" .||. "node_modules/katex/dist/contrib/auto-render.*" .||. "node_modules/katex/dist/fonts/**") $ do
+    route $ gsubRoute "node_modules/katex/dist/" (const "vendor/katex/")
+    compile copyFileCompiler
+  match ("**/node_modules/katex/dist/katex.*" .||. "**/node_modules/katex/dist/contrib/auto-render.*" .||. "**/node_modules/katex/dist/fonts/**") $ do
     route $ gsubRoute "node_modules/katex/dist/" (const "vendor/katex/")
     compile copyFileCompiler
 

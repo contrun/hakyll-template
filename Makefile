@@ -1,6 +1,7 @@
 .DEFAULT_GOAL:=all
 
 builder ?= stack
+HAKYLL_PROVIDER_DIRECTORY ?= .
 
 all: prepare build fixup
 
@@ -15,12 +16,15 @@ build:
 	$(builder) exec site -- build
 
 fixup:
-	mkdir -p .tmp
-	$(builder) exec site -- check | sed 's#Checking file ##g' | tee .tmp/file_list.txt
+	mkdir -p $(HAKYLL_PROVIDER_DIRECTORY)/.tmp
+	$(builder) exec site -- check | sed 's#Checking file ##g' | tee $(HAKYLL_PROVIDER_DIRECTORY)/.tmp/file_list.txt
 
-serve: all
+all-serve: all
+	$(builder) exec site -- server
+
+serve:
 	$(builder) exec site -- server
 
 clean:
 	$(builder) exec site -- clean
-	rm -rf _temp .tmp .hakyll-cache public
+	cd $(HAKYLL_PROVIDER_DIRECTORY); rm -rf _temp .tmp .hakyll-cache public

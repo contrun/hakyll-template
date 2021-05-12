@@ -13,6 +13,7 @@ executable site
                 split >= 0.2.3.3,
                 text >= 1.2.3.1,
                 pandoc,
+                envy,
                 pandoc-types
 
  ghc-options: -threaded
