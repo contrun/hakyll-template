@@ -77,27 +77,18 @@ trimString = f . f
 
 main :: IO ()
 main = hakyllWith config $ do
-  match "assets/**" $ do
-    route idRoute
-    compile copyFileCompiler
-  match "documents/**" $ do
-    route idRoute
-    compile copyFileCompiler
-  match "pictures/**" $ do
-    route idRoute
-    compile copyFileCompiler
-  match "images/**" $ do
-    route idRoute
-    compile copyFileCompiler
-  match "css/*" $ do
-    route idRoute
-    compile compressCssCompiler
-  match "js/**" $ do
-    route idRoute
-    compile copyFileCompiler
-  match "fonts/**" $ do
-    route idRoute
-    compile copyFileCompiler
+  match ("posts/*.org") $ do
+    route tempRoute
+    compile $ getResourceString >>= orgCompiler
+  match (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org") $ do
+    route $ (metadataRoute titleRoute) `composeRoutes` cleanRoute
+    compile $
+      customPandocCompiler
+        >>= loadAndApplyTemplate "templates/post.html" postCtx
+        >>= loadAndApplyTemplate "templates/default.html" postCtx
+        >>= relativizeUrls
+        >>= cleanIndexUrls
+
   match ("pages/*" .&&. complement "pages/index.html") $ do
     route $ setExtension "html" `composeRoutes` gsubRoute "pages/" (const "") `composeRoutes` cleanRoute
     compile $
@@ -105,19 +96,20 @@ main = hakyllWith config $ do
         >>= loadAndApplyTemplate "templates/default.html" myDefaultContext
         >>= relativizeUrls
         >>= cleanIndexUrls
-  match ("posts/*.org") $ do
-    route tempRoute
-    compile $ getResourceString >>= orgCompiler
-  match (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org") $ do
-    route $ (metadataRoute titleRoute) `composeRoutes` cleanRoute
-    compile $
-      -- getResourceString
-      --   >>= convertUrlCompiler >>=
-      customPandocCompiler
-        >>= loadAndApplyTemplate "templates/post.html" postCtx
-        >>= loadAndApplyTemplate "templates/default.html" postCtx
+  match "pages/index.html" $ do
+    route $ constRoute "index.html"
+    compile $ do
+      posts <- recentFirst =<< loadAll (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org")
+      let indexCtx =
+            listField "posts" postCtx (return posts)
+              `mappend` constField "title" "Home"
+              `mappend` myDefaultContext
+      getResourceBody
+        >>= applyAsTemplate indexCtx
+        >>= loadAndApplyTemplate "templates/default.html" indexCtx
         >>= relativizeUrls
         >>= cleanIndexUrls
+
   create ["404.html"] $ do
     route idRoute
     compile $ do
@@ -138,37 +130,59 @@ main = hakyllWith config $ do
       makeItem ""
         >>= loadAndApplyTemplate "templates/default.html" archiveCtx
         >>= relativizeUrls
-  create ["archives.html"] $ do
+  create ["archive.html"] $ do
     route $ idRoute `composeRoutes` cleanRoute
     compile $ do
       posts <- recentFirst =<< loadAll (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org")
       let archiveCtx =
             listField "posts" postCtx (return posts)
-              `mappend` constField "title" "Archives"
+              `mappend` constField "title" "Archive"
               `mappend` myDefaultContext
       makeItem ""
         >>= loadAndApplyTemplate "templates/post-list.html" archiveCtx
         >>= loadAndApplyTemplate "templates/default.html" archiveCtx
         >>= relativizeUrls
         >>= cleanIndexUrls
-  match "pages/index.html" $ do
-    route $ constRoute "index.html"
-    compile $ do
-      posts <- recentFirst =<< loadAll (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org")
-      let indexCtx =
-            listField "posts" postCtx (return posts)
-              `mappend` constField "title" "Home"
-              `mappend` myDefaultContext
-      getResourceBody
-        >>= applyAsTemplate indexCtx
-        >>= loadAndApplyTemplate "templates/default.html" indexCtx
-        >>= relativizeUrls
-        >>= cleanIndexUrls
-  match "templates/*" $ compile templateBodyCompiler
-  match ("node_modules/katex/dist/katex.*" .||. "node_modules/katex/dist/contrib/auto-render.*" .||. "node_modules/katex/dist/fonts/**") $ do
-    route $ gsubRoute "node_modules/katex/dist/" (const "vendor/katex/")
+
+  -- Assume the hakyll program lies within the subdirectory.
+  match ("*/css/*") $ do
+    route $ gsubRoute "(.*?)/" (const "")
+    compile compressCssCompiler
+  match ("css/*") $ do
+    route $ idRoute
+    compile compressCssCompiler
+  match ("*/js/**") $ do
+    route $ gsubRoute "(.*?)/" (const "")
     compile copyFileCompiler
-  match ("**/node_modules/katex/dist/katex.*" .||. "**/node_modules/katex/dist/contrib/auto-render.*" .||. "**/node_modules/katex/dist/fonts/**") $ do
+  match ("js/**") $ do
+    route $ idRoute
+    compile copyFileCompiler
+  match ("*/fonts/**") $ do
+    route $ gsubRoute "(.*?)/" (const "")
+    compile copyFileCompiler
+  match ("fonts/**") $ do
+    route $ idRoute
+    compile copyFileCompiler
+  match ("*/templates/*") $ compile templateBodyCompiler
+  match ("templates/*") $ compile templateBodyCompiler
+
+  match "assets/**" $ do
+    route idRoute
+    compile copyFileCompiler
+  match "documents/**" $ do
+    route idRoute
+    compile copyFileCompiler
+  match "pictures/**" $ do
+    route idRoute
+    compile copyFileCompiler
+  match "images/**" $ do
+    route idRoute
+    compile copyFileCompiler
+
+  match ("*/node_modules/katex/dist/katex.*" .||. "*/node_modules/katex/dist/contrib/auto-render.*" .||. "*/node_modules/katex/dist/fonts/**") $ do
+    route $ gsubRoute "(.*?)/node_modules/katex/dist/" (const "vendor/katex/")
+    compile copyFileCompiler
+  match ("node_modules/katex/dist/katex.*" .||. "node_modules/katex/dist/contrib/auto-render.*" .||. "node_modules/katex/dist/fonts/**") $ do
     route $ gsubRoute "node_modules/katex/dist/" (const "vendor/katex/")
     compile copyFileCompiler
 
