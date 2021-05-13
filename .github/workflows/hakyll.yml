@@ -1,9 +1,24 @@
-name: Hakyll site CI
+name: build hakyll website
 
-on: [push]
+on:
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - master
+      - main
+      - actions
+      - ci
+      - 'releases/*'
+  push:
+    branches:
+      - master
+      - main
+      - actions
+      - ci
+      - 'releases/*'
 
 jobs:
-  build:
+  build-hakyll:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -70,23 +85,8 @@ jobs:
         HAKYLL_PROVIDER_DIRECTORY=. HAKYLL_DESTINATION_DIRECTORY=./public make
 
     - uses: peaceiris/actions-gh-pages@v3
+      if: ${{ github.event_name != 'pull_request' }}
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./public
         publish_branch: gh-pages
-
-    - name: Build docker image, push it to docker hub
-      run: |
-        set -x
-        [[ -z "$DOCKER_HUB_USERNAME" ]] && DOCKER_HUB_USERNAME="$(awk -F / '{print $1}' <<< "$GITHUB_REPOSITORY")"
-        [[ -z "$PACKAGE_NAME" ]] && PACKAGE_NAME="$(echo "$GITHUB_REPOSITORY" | awk -F / '{print $2}' | sed -e "s/:refs//")"
-        DOCKER_TAG="$(find .github/workflows .gitlab-ci.yml stack.yaml* *.cabal package*.json Dockerfile src | LC_ALL=C sort | cpio -o --quiet | sha512sum | cut -c 1-128)"
-        DOCKER_HUB_URL="$DOCKER_HUB_USERNAME/$PACKAGE_NAME"
-        DOCKER_IMAGE="$DOCKER_HUB_URL:$DOCKER_TAG"
-        DOCKER_IMAGE_LATEST="$DOCKER_HUB_URL:latest"
-        echo ${{secrets.DOCKER_HUB_TOKEN}} | docker login -u $DOCKER_HUB_USERNAME --password-stdin
-        docker pull "$DOCKER_IMAGE" && exit 0
-        docker build -t "$DOCKER_IMAGE" .
-        docker push "$DOCKER_IMAGE"
-        docker build -t "$DOCKER_IMAGE_LATEST" .
-        docker push "$DOCKER_IMAGE_LATEST"

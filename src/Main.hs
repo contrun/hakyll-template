@@ -218,7 +218,7 @@ cleanIndex url
 --------------------------------------------------------------------------------
 myDefaultContext :: Context String
 myDefaultContext =
-  constField "siteTitle" "ecce homo"
+  constField "siteTitle" (hakyllTitle hakyllConfig)
     <> defaultContext
 
 postCtx :: Context String
