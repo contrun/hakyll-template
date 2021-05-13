@@ -64,11 +64,21 @@ config :: Configuration
 config =
   trace (show hakyllConfig) $
     defaultConfiguration
-      { destinationDirectory = hakyllDestinationDirectory hakyllConfig,
+      { ignoreFile = ignoreFile',
+        destinationDirectory = destinationDirectory',
         providerDirectory = hakyllProviderDirectory hakyllConfig,
-        storeDirectory = hakyllStoreDirectory hakyllConfig,
+        storeDirectory = storeDirectory',
         deployCommand = hakyllDeployCommand hakyllConfig
       }
+  where
+    destinationDirectory' = hakyllDestinationDirectory hakyllConfig
+    storeDirectory' = hakyllStoreDirectory hakyllConfig
+    -- I normally use ../public as destinationDirectory, here I ignore anyfiles starts with public.
+    -- There are some false positives. It's good enough for now.
+    ignoreFile' p = (ignoreFile defaultConfiguration) p || destinationDirectoryBase `isPrefixOf` p || storeDirectoryBase `isPrefixOf` p
+      where
+        destinationDirectoryBase = takeFileName destinationDirectory'
+        storeDirectoryBase = takeFileName storeDirectory'
 
 trimString :: String -> String
 trimString = f . f
@@ -146,19 +156,19 @@ main = hakyllWith config $ do
 
   -- Assume the hakyll program lies within the subdirectory.
   match ("*/css/*") $ do
-    route $ gsubRoute "(.*?)/" (const "")
+    route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile compressCssCompiler
   match ("css/*") $ do
     route $ idRoute
     compile compressCssCompiler
   match ("*/js/**") $ do
-    route $ gsubRoute "(.*?)/" (const "")
+    route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile copyFileCompiler
   match ("js/**") $ do
     route $ idRoute
     compile copyFileCompiler
   match ("*/fonts/**") $ do
-    route $ gsubRoute "(.*?)/" (const "")
+    route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile copyFileCompiler
   match ("fonts/**") $ do
     route $ idRoute
@@ -180,7 +190,7 @@ main = hakyllWith config $ do
     compile copyFileCompiler
 
   match ("*/node_modules/katex/dist/katex.*" .||. "*/node_modules/katex/dist/contrib/auto-render.*" .||. "*/node_modules/katex/dist/fonts/**") $ do
-    route $ gsubRoute "(.*?)/node_modules/katex/dist/" (const "vendor/katex/")
+    route $ gsubRoute "^[^/]+/node_modules/katex/dist/" (const "vendor/katex/")
     compile copyFileCompiler
   match ("node_modules/katex/dist/katex.*" .||. "node_modules/katex/dist/contrib/auto-render.*" .||. "node_modules/katex/dist/fonts/**") $ do
     route $ gsubRoute "node_modules/katex/dist/" (const "vendor/katex/")
