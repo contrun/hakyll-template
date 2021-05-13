@@ -1,27 +1,26 @@
 build:
-  image: contrun/website-template:latest
-  before_script:
-    - npm install
-    - cabal update
-    - cabal build
+  image:
+    name: contrun/website-template:latest
+    # https://gitlab.com/gitlab-org/gitlab-runner/-/issues/1170
+    entrypoint: [""]
   script:
-    - cabal exec site -- build
-    - cabal exec site -- build
-    - cabal exec site -- check
+    - set -xeu
+    - find $PWD
+    - HAKYLL_PROVIDER_DIRECTORY="$PWD" HAKYLL_DESTINATION_DIRECTORY="$PWD/public" make -C /hakyll/builder/
+    - find $PWD
   except:
     - master
 
 pages:
-  image: contrun/website-template:latest
-  before_script:
-    - npm install
-    - cabal update
-    - cabal build
+  image:
+    name: contrun/website-template:latest
+    # https://gitlab.com/gitlab-org/gitlab-runner/-/issues/1170
+    entrypoint: [""]
   script:
-    - cabal exec site -- build
-    - cabal exec site -- build
-    - cabal exec site -- check
-    - find .
+    - set -xeu
+    - find $PWD
+    - HAKYLL_PROVIDER_DIRECTORY="$PWD" HAKYLL_DESTINATION_DIRECTORY="$PWD/public" make -C /hakyll/builder/
+    - find $PWD
   artifacts:
     paths:
       - public
