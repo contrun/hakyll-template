@@ -1,0 +1,5 @@
+#+TITLE: Some Encrypted Article
+#+ENCRYPTION: True
+#+DATE: Wed, 19 Feb 2020 14:51:55 +0800
+
+Test.
