@@ -21,7 +21,7 @@ prepare:
 
 # Build twice to use intermediate parsed org files
 build:
-	if [[ "$(shell realpath '$(HAKYLL_BUILDER_DIRECTORY)/node_modules/')" != "$(shell realpath '$(HAKYLL_PROVIDER_DIRECTORY)/node_modules/')" ]]; then cp -TRv '$(HAKYLL_BUILDER_DIRECTORY)/node_modules/' '$(HAKYLL_PROVIDER_DIRECTORY)/node_modules/'; fi
+	if [ "$(shell realpath '$(HAKYLL_BUILDER_DIRECTORY)')" != "$(shell realpath '$(HAKYLL_PROVIDER_DIRECTORY)/vendor/')" ]; then cp -TRv '$(HAKYLL_BUILDER_DIRECTORY)/' '$(HAKYLL_PROVIDER_DIRECTORY)/vendor/'; fi
 	$(builder) exec site -- build
 	$(builder) exec site -- build
 
