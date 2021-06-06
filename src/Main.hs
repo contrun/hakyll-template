@@ -24,6 +24,7 @@ import Hakyll
 import qualified Hakyll.Core.Store as Store
 import System.Environment.Blank
 import System.Envy
+import System.FilePath (addTrailingPathSeparator)
 import System.FilePath.Posix
   ( joinPath,
     normalise,
@@ -58,6 +59,7 @@ instance DefConfig HakyllConfig where
   defConfig = HakyllConfig "site untitled" "" "../public" ".." ".hakyll-cache" "bash deploy.sh"
 
 hakyllConfig :: HakyllConfig
+{-# NOINLINE hakyllConfig #-}
 hakyllConfig = unsafePerformIO $ decodeWithDefaults defConfig
 
 config :: Configuration
@@ -75,7 +77,7 @@ config =
     storeDirectory' = hakyllStoreDirectory hakyllConfig
     -- I normally use ../public as destinationDirectory, here I ignore anyfiles starts with public.
     -- There are some false positives. It's good enough for now.
-    ignoreFile' p = (ignoreFile defaultConfiguration) p || destinationDirectoryBase `isPrefixOf` p || storeDirectoryBase `isPrefixOf` p
+    ignoreFile' p = ignoreFile defaultConfiguration p || destinationDirectoryBase `isPrefixOf` p || storeDirectoryBase `isPrefixOf` p
       where
         destinationDirectoryBase = takeFileName destinationDirectory'
         storeDirectoryBase = takeFileName storeDirectory'
@@ -87,11 +89,11 @@ trimString = f . f
 
 main :: IO ()
 main = hakyllWith config $ do
-  match ("posts/*.org") $ do
+  match "posts/*.org" $ do
     route tempRoute
     compile $ getResourceString >>= orgCompiler
   match (("posts/*" .&&. complement "posts/*.org") .||. "_temp/posts/*.org") $ do
-    route $ (metadataRoute titleRoute) `composeRoutes` cleanRoute
+    route $ metadataRoute titleRoute `composeRoutes` cleanRoute
     compile $
       customPandocCompiler
         >>= loadAndApplyTemplate "templates/post.html" postCtx
@@ -155,26 +157,26 @@ main = hakyllWith config $ do
         >>= cleanIndexUrls
 
   -- Assume the hakyll program lies within the subdirectory.
-  match ("*/css/*") $ do
+  match "*/css/*" $ do
     route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile compressCssCompiler
-  match ("css/*") $ do
-    route $ idRoute
+  match "css/*" $ do
+    route idRoute
     compile compressCssCompiler
-  match ("*/js/**") $ do
+  match "*/js/**" $ do
     route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile copyFileCompiler
-  match ("js/**") $ do
-    route $ idRoute
+  match "js/**" $ do
+    route idRoute
     compile copyFileCompiler
-  match ("*/fonts/**") $ do
+  match "*/fonts/**" $ do
     route $ customRoute $ joinPath . drop 1 . splitPath . toFilePath
     compile copyFileCompiler
-  match ("fonts/**") $ do
-    route $ idRoute
+  match "fonts/**" $ do
+    route idRoute
     compile copyFileCompiler
-  match ("*/templates/*") $ compile templateBodyCompiler
-  match ("templates/*") $ compile templateBodyCompiler
+  match "*/templates/*" $ compile templateBodyCompiler
+  match "templates/*" $ compile templateBodyCompiler
 
   match "assets/**" $ do
     route idRoute
@@ -254,9 +256,8 @@ katexScript =
 mathCtx :: Context String
 mathCtx = field "mathRender" $ \item -> do
   metadata <- getMetadata $ itemIdentifier item
-  return ""
   return $
-    case fmap (map toLower) $ lookupString "math" metadata of
+    case map toLower <$> lookupString "math" metadata of
       Just "mathjax" -> mathjaxScript
       Just "mathml" -> ""
       Just "no" -> ""
@@ -265,7 +266,7 @@ mathCtx = field "mathRender" $ \item -> do
       _ -> katexScript
 
 readBoolOption :: String -> Bool
-readBoolOption x = elem (map toLower x) ["on", "yes", "true", "1"]
+readBoolOption x = map toLower x `elem` ["on", "yes", "true", "1"]
 
 enableTOC :: Bool
 enableTOC = False
@@ -290,7 +291,7 @@ customPandocCompiler = do
   mathOption <- getMetadataField identifier "math"
   tocOption <- getMetadataField identifier "enabletoc"
   numberSectionsOption <- getMetadataField identifier "enablenumbersections"
-  let enableToc = fromMaybe enableTOC $ fmap readBoolOption tocOption
+  let enableToc = maybe enableTOC readBoolOption tocOption
   path <- getResourceFilePath
   let writerOptions =
         defaultHakyllWriterOptions
@@ -299,7 +300,7 @@ customPandocCompiler = do
               Just "mathml" -> MathML
               _ | enableMathml -> MathML
               _ -> MathJax "",
-            writerNumberSections = fromMaybe enableNumberSections $ fmap readBoolOption numberSectionsOption,
+            writerNumberSections = maybe enableNumberSections readBoolOption numberSectionsOption,
             writerTableOfContents = enableToc,
             writerTOCDepth = 3,
             writerTemplate = if enableToc then Just tocTemplate else Nothing
@@ -346,22 +347,28 @@ internalLinkTransform' route orig@(Link attr inl (url, title)) = do
   res <- getIdentifierURLCompiler route (fromFilePath $ T.unpack url)
   return $ go res
   where
-    go :: (Store.Result String) -> Inline
+    go :: Store.Result String -> Inline
     go (Store.Found newUrl) = Link attr inl (T.pack newUrl, title)
     go _ = orig
 internalLinkTransform' _ x = return x
 
+-- The url was saved to the store with the original file path as key, and the url as value.
+-- The path passed here is of the form `*/_temp/posts/*.org`. We drop the path before `_temp`.
 getIdentifierURLCompiler :: FilePath -> Identifier -> Compiler (Store.Result String)
 getIdentifierURLCompiler path identifier = unsafeCompiler $ do
   let p = toFilePath identifier
-      newPath = joinPath $ drop 1 $ splitPath $ normalise $ takeDirectory path </> p
+      splittedPath = splitPath $ normalise $ takeDirectory path </> p
+      tempDir = addTrailingPathSeparator "_temp/"
+      newPath = joinPath $ if tempDir `elem` splittedPath then drop 1 $ dropWhile (/= tempDir) splittedPath else splittedPath
   store <- Store.new False $ storeDirectory config
-  Store.get store [newPath]
+  url <- Store.get store [newPath]
+  return (trace ("Obtaining URL for identifier: " ++ show identifier ++ ", path: " ++ path ++ ", newPath: " ++ newPath ++ ", URL: " ++ show url) url)
 
 setIdentifierURLCompiler :: Identifier -> String -> Compiler ()
 setIdentifierURLCompiler identifier url = unsafeCompiler $ do
   store <- Store.new False $ storeDirectory config
-  Store.set store [normalise $ toFilePath identifier] url
+  let path = normalise $ toFilePath identifier
+  trace ("Saving path-URL mapping, path: " ++ path ++ ", URL: " ++ url) Store.set store [path] url
 
 -- | From org get metadatas.
 orgCompiler :: Item String -> Compiler (Item String)
@@ -376,17 +383,17 @@ orgCompiler i = do
           slug = fromJust $ M.lookup "slug" metadata
           filename = getFileNameFromSlug slug
           metadataLines = map (\x -> intercalate ": " [fst x, snd x]) $ M.toList metadata
-          result = (unlines ([dashes] ++ metadataLines ++ [dashes])) ++ body
-       in fmap (\_ -> result) $ setIdentifierURLCompiler identifier $ toUrl filename
+          result = unlines ([dashes] ++ metadataLines ++ [dashes]) ++ body
+       in fmap (const result) $ setIdentifierURLCompiler identifier $ toUrl filename
 
 getOrgMetadata :: String -> M.Map String String
 getOrgMetadata body =
-  let getMap = M.fromList . (map getTuple) . getGoodLines . lines
+  let getMap = M.fromList . map getTuple . getGoodLines . lines
       m = getMap body
       slug = slugify $ fromJust $ M.lookup "slug" m <|> M.lookup "title" m
    in M.insert "slug" slug m
   where
-    getGoodLines = filter (/= "") . takeWhile (\x -> (isPrefixOf "#+" x || x == ""))
+    getGoodLines = filter (/= "") . takeWhile (\x -> isPrefixOf "#+" x || x == "")
     clean :: String -> String
     clean = concat . splitOn "#+"
     format :: String -> (String, String)
