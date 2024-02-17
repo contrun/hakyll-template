@@ -1,5 +1,5 @@
 .DEFAULT_GOAL:=all
-builder ?= stack
+builder ?= cabal
 
 ifneq (,$(wildcard ./.env))
 	include .env
@@ -49,5 +49,6 @@ serve:
 
 clean:
 	$(builder) exec site -- clean
+	$(builder) clean
 	cd '$(HAKYLL_PROVIDER_DIRECTORY)'; rm -rf _temp .tmp .hakyll-cache
 	rm -rf '$(HAKYLL_DESTINATION_DIRECTORY)'

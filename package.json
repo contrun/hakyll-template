@@ -1,10 +1,10 @@
 {
-  "name": "blog",
+  "name": "website-template",
   "version": "0.1.0",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/blahblahblah/blahblahblah.gitlab.io.git"
+    "url": "git+https://github.com/contrun/website-template/.git"
   },
   "dependencies": {
     "katex": "^0.11.1",

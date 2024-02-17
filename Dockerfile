@@ -9,8 +9,8 @@ RUN curl -sL https://deb.nodesource.com/setup_16.x | bash - && \
 
 WORKDIR /hakyll/builder
 
-COPY stack.yaml stack.yaml.lock site.cabal /hakyll/builder/
-RUN stack setup
+COPY site.cabal cabal.project.freeze /hakyll/builder/
+RUN cabal fetch
 
 COPY . /hakyll/builder
 RUN make prepare

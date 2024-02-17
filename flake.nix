@@ -31,20 +31,20 @@
             # Add source or Hackage overrides here
             # (Local packages are added automatically)
             /*
-            aeson.source = "1.5.0.0" # Hackage version
-            shower.source = inputs.shower; # Flake input
+              aeson.source = "1.5.0.0" # Hackage version
+              shower.source = inputs.shower; # Flake input
             */
           };
 
           # Add your package overrides here
           settings = {
             /*
-            haskell-template = {
+              haskell-template = {
               haddock = false;
-            };
-            aeson = {
+              };
+              aeson = {
               check = false;
-            };
+              };
             */
           };
 
@@ -97,6 +97,7 @@
             config.treefmt.build.devShell
           ];
           nativeBuildInputs = with pkgs; [
+            nodejs
             just
           ];
         };
