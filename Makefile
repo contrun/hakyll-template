@@ -36,9 +36,10 @@ fixup:
 	grep --include '*.org' -lZRi '^#+encryption:' '$(HAKYLL_PROVIDER_DIRECTORY)' | xargs -0 -r -n1 sed -nE '/^slug:/ s/^slug:\s*//p; /#\+slug:/I s/#\+slug:\s*//pI' | sort | uniq | while IFS= read -r slug; do
 		salt="$$(echo "$$slug" | tryOrDie tr -cd '[:alnum:]')BPmzB7gZEq1m4YtCk2Mr"
 		file="$$(echo "$$files" | tryOrDie grep "/$$slug/index.html")"
+		dir="$$(dirname "$$file")"
 		# staticrypt does not appear to support non-alphanum password
 		password="$$(tryOrDie openssl passwd -6 -salt "$$salt" "$(HAKYLL_ENCRYPTION_PASSWORD)" | tr -cd '[:alnum:]')"
-		tryOrDie npm exec -- staticrypt -o "$$file" "$$file" -f templates/password_template.html "$$password"
+		tryOrDie npm exec -- staticrypt -p "$$password" -d "$$dir" "$$file"
 	done
 
 all-serve: all
