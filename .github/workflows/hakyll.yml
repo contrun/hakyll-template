@@ -22,13 +22,31 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        ghc: [ '8.10' ]
+        ghc: [ '9.8' ]
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions/setup-node@v2
+    - uses: actions/checkout@v3
+
+    - name: Install nix
+      uses: cachix/install-nix-action@v24
       with:
-        node-version: '16'
+        nix_path: nixpkgs=channel:nixos-unstable
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          access-tokens = github.com=${{ github.token }}
+          substituters = https://cache.nixos.org
+          trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+
+    - name: Setup magic-nix-cache
+      uses: DeterminateSystems/magic-nix-cache-action@v2
+      with:
+        diagnostic-endpoint: ""
+
+    - name: "Setup direnv"
+      uses: JRMurr/direnv-nix-action@v4.1.0
+      with:
+        install-nix: "false"
+        cache-store: "false"
 
     - uses: actions/cache@v1
       name: Cache ~/.npm
@@ -37,13 +55,6 @@ jobs:
         key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
         restore-keys: |
           ${{ runner.os }}-node-
-
-    - uses: haskell/actions/setup@v1
-      with:
-        enable-stack: true
-        stack-version: 'latest'
-        cabal-version: 'latest'
-        ghc-version: ${{ matrix.ghc }}
 
     - name: Cache ~/.cabal/store
       uses: actions/cache@v1
@@ -62,24 +73,6 @@ jobs:
         restore-keys: |
           dist-newstyle-${{ runner.OS }}-${{ matrix.ghc }}-
           dist-newstyle-${{ runner.OS }}-
-
-    - name: Cache stack-work
-      uses: actions/cache@v1
-      with:
-        path: .stack-work
-        key: stack-work-${{ runner.OS }}-${{ matrix.ghc }}-${{ hashFiles('*.cabal', 'stack.yaml*') }}
-        restore-keys: |
-          stack-work-${{ runner.OS }}-${{ matrix.ghc }}-
-          stack-work-${{ runner.OS }}-
-
-    - name: Cache ~/.stack
-      uses: actions/cache@v1
-      with:
-        path: ~/.stack
-        key: home-stack-${{ runner.OS }}-${{ matrix.ghc }}-${{ hashFiles('*.cabal', 'stack.yaml*') }}
-        restore-keys: |
-          home-stack-${{ runner.OS }}-${{ matrix.ghc }}-
-          home-stack-${{ runner.OS }}-
 
     - name: Build the site
       env:

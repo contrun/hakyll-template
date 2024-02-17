@@ -1,4 +1,4 @@
-FROM haskell:latest
+FROM haskell:9.8
 
 RUN curl -sL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales nodejs openssl bash && \

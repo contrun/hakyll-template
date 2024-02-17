@@ -1,5 +1,5 @@
 {
-  description = "srid/haskell-template: Nix template for Haskell projects";
+  description = "website-template";
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     systems.url = "github:nix-systems/default";
@@ -23,8 +23,8 @@
         # has only one.
         # See https://github.com/srid/haskell-flake/blob/master/example/flake.nix
         haskellProjects.default = {
-          # The base package set (this value is the default)
-          # basePackages = pkgs.haskellPackages;
+          # The base package set (this value is the default
+          basePackages = pkgs.haskell.packages.ghc98;
 
           # Packages to add on top of `basePackages`
           packages = {
@@ -84,8 +84,13 @@
         };
 
         # Default package & app.
-        packages.default = self'.packages.haskell-template;
-        apps.default = self'.apps.haskell-template;
+        packages.default = self'.packages.site;
+        apps.default = self'.apps.site;
+
+        packages.docker = pkgs.dockerTools.buildImage {
+          name = "website-template";
+          config = { Cmd = [ "${self'.packages.default}/bin/site" ]; };
+        };
 
         # Default shell.
         devShells.default = pkgs.mkShell {

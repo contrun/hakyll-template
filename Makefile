@@ -1,5 +1,4 @@
 .DEFAULT_GOAL:=all
-builder ?= cabal
 
 ifneq (,$(wildcard ./.env))
 	include .env
@@ -16,14 +15,14 @@ all: prepare build fixup
 
 prepare:
 	npm install
-	$(builder) update
-	$(builder) build
+	cabal update
+	cabal build
 
 # Build twice to use intermediate parsed org files
 build:
 	if [ "$(shell realpath '$(HAKYLL_BUILDER_DIRECTORY)')" != "$(shell realpath '$(HAKYLL_PROVIDER_DIRECTORY)/vendor/')" ]; then cp -TRv '$(HAKYLL_BUILDER_DIRECTORY)/' '$(HAKYLL_PROVIDER_DIRECTORY)/vendor/'; fi
-	$(builder) exec site -- build
-	$(builder) exec site -- build
+	cabal exec site -- build
+	cabal exec site -- build
 
 .ONESHELL:
 fixup:
@@ -42,14 +41,13 @@ fixup:
 		tryOrDie npm exec -- staticrypt -p "$$password" -d "$$dir" "$$file"
 	done
 
-all-serve: all
-	$(builder) exec site -- server
+all-serve: all serve
 
 serve:
-	$(builder) exec site -- server
+	cabal exec site -- server
 
 clean:
-	$(builder) exec site -- clean
-	$(builder) clean
+	cabal exec site -- clean
+	cabal clean
 	cd '$(HAKYLL_PROVIDER_DIRECTORY)'; rm -rf _temp .tmp .hakyll-cache
 	rm -rf '$(HAKYLL_DESTINATION_DIRECTORY)'
